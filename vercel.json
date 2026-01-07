@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "name": "ai-project-manager",
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "env": {
+    "VITE_SUPABASE_URL": "https://rzcmqhwggwqtfokzrlbh.supabase.co",
+    "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6Y21xaHdnZ3dxdGZva3pybGJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3Mzc3OTAsImV4cCI6MjA4MzMxMzc5MH0.lT3k40Yq_B1H-SDiu97jQCPXU_OapAaRakyt8AqAjIw"
+  },
+  "functions": {
+    "api/*.js": {
+      "maxDuration": 10
+    }
+  }
+}
