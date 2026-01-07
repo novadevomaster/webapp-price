@@ -323,30 +323,40 @@ app.get('/api/ai/suggestions/:type', async (req, res) => {
   }
 });
 
-// 📊 Analytics Endpoint
+// 📊 Analytics endpoint
 app.get('/api/analytics', async (req, res) => {
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('ai_queries')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(100);
 
+    if (error) {
+      console.error('Analytics error:', error);
+      return res.status(500).json({ 
+        error: 'Failed to fetch analytics',
+        details: error.message 
+      });
+    }
+
     const stats = {
-      total_queries: data?.length || 0,
-      providers: {},
-      cache_hit_rate: cache.getStats().hits / (cache.getStats().hits + cache.getStats().misses) * 100
+      totalQueries: data?.length || 0,
+      cacheHitRate: cache.getStats().hitRate || 0,
+      apiUsage: {
+        gpt: apiStats?.gpt || 0,
+        gemini: apiStats?.gemini || 0
+      },
+      recentQueries: data?.slice(0, 10) || []
     };
 
-    data?.forEach(query => {
-      stats.providers[query.provider] = (stats.providers[query.provider] || 0) + 1;
-    });
-
-    res.json({ success: true, data: stats });
-
+    res.json(stats);
   } catch (error) {
-    console.error('Analytics Error:', error);
-    res.status(500).json({ error: 'Failed to get analytics' });
+    console.error('Analytics endpoint error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message 
+    });
   }
 });
 

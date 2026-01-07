@@ -11,277 +11,91 @@ const supabase = createClient(
 
 function App() {
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
+  const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [analytics, setAnalytics] = useState(null);
-  const [health, setHealth] = useState(null);
-  const [activeTab, setActiveTab] = useState('chat');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
 
-  // 🔄 Load initial data
+  // 📊 Load analytics on mount
   useEffect(() => {
-    loadHealthCheck();
-    loadAnalytics();
+    fetchAnalytics();
   }, []);
 
-  const loadHealthCheck = async () => {
-    try {
-      const response = await fetch('/api/health');
-      const data = await response.json();
-      setHealth(data);
-    } catch (error) {
-      console.error('Health check failed:', error);
-    }
-  };
-
-  const loadAnalytics = async () => {
+  const fetchAnalytics = async () => {
     try {
       const response = await fetch('/api/analytics');
       const data = await response.json();
-      if (data.success) {
-        setAnalytics(data.data);
-      }
+      setAnalytics(data);
     } catch (error) {
-      console.error('Analytics failed:', error);
+      console.error('Failed to fetch analytics:', error);
     }
   };
 
-  // 🤖 Send message to AI
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+  // 🤖 Handle AI Query
+  const handleQuery = async () => {
+    if (!inputValue.trim()) return;
 
-    const userMessage = {
-      id: Date.now(),
-      type: 'user',
-      content: input,
-      timestamp: new Date().toISOString()
-    };
-
+    const userMessage = { role: 'user', content: inputValue };
     setMessages(prev => [...prev, userMessage]);
-    setInput('');
     setIsLoading(true);
 
     try {
       const response = await fetch('/api/ai/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: input })
+        body: JSON.stringify({ query: inputValue })
       });
 
       const data = await response.json();
       
-      if (data.success) {
-        const aiMessage = {
-          id: Date.now() + 1,
-          type: 'ai',
-          content: data.data.response,
-          provider: data.data.provider,
-          fromCache: data.data.fromCache,
-          timestamp: new Date().toISOString()
-        };
-
-        setMessages(prev => [...prev, aiMessage]);
-      } else {
-        throw new Error(data.error);
-      }
+      const aiMessage = { role: 'assistant', content: data.data.response };
+      setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
-      const errorMessage = {
-        id: Date.now() + 1,
-        type: 'error',
-        content: `❌ Error: ${error.message}`,
-        timestamp: new Date().toISOString()
-      };
-
-      setMessages(prev => [...prev, errorMessage]);
+      console.error('Query failed:', error);
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: '❌ عذراً، حدث خطأ. يرجى المحاولة مرة أخرى.' 
+      }]);
     } finally {
       setIsLoading(false);
-      loadAnalytics(); // Refresh analytics
+      setInputValue('');
     }
   };
 
-  // 🎯 Quick actions
-  const quickActions = [
-    { 
-      label: 'Analyze Project', 
-      action: 'Analyze my current project structure and suggest improvements',
-      icon: <BarChart3 className="w-4 h-4" />
-    },
-    { 
-      label: 'Performance Tips', 
-      action: 'Give me performance optimization tips for React apps',
-      icon: <Zap className="w-4 h-4" />
-    },
-    { 
-      label: 'Security Check', 
-      action: 'Check my project for common security vulnerabilities',
-      icon: <Shield className="w-4 h-4" />
-    }
-  ];
-
-  const handleQuickAction = (action) => {
-    setInput(action);
-    // Auto-send after setting input
-    setTimeout(() => {
-      const event = new KeyboardEvent('keydown', { key: 'Enter' });
-      document.getElementById('chat-input')?.dispatchEvent(event);
-    }, 100);
+  // 🔍 Handle Project Search
+  const handleSearch = () => {
+    if (!searchQuery.trim()) return;
+    
+    const results = searchProjects(searchQuery, selectedCategory || null);
+    setSearchResults(results);
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white">
-      {/* Header */}
-      <header className="border-b border-slate-700 bg-slate-900/50 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Bot className="w-8 h-8 text-blue-400" />
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                AI Project Manager
-              </h1>
-            </div>
-            
-            {/* Health Status */}
-            {health && (
-              <div className="flex items-center space-x-4 text-sm">
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${health.status === 'healthy' ? 'bg-green-400' : 'bg-red-400'}`} />
-                  <span className="text-slate-300">API: {health.status}</span>
-                </div>
-                <div className="text-slate-400">
-                  Cache: {health.cache_stats?.hits || 0} hits
-                </div>
-                <div className="text-slate-400">
-                  Keys: GPT:{health.api_keys_status?.gpt || 0} Gemini:{health.api_keys_status?.gemini || 0}
-                </div>
-              </div>
-            )}
+  // 📊 Render Analytics Dashboard
+  const renderAnalytics = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
+          <div className="flex items-center">
+            <Brain className="h-8 w-8 text-blue-600 ml-3" />
+            <h3 className="text-lg font-semibold text-gray-900">إجمالي الاستفسارات</h3>
           </div>
+          <p className="text-2xl font-bold text-blue-600 mt-2">{analytics?.totalQueries || 0}</p>
         </div>
-      </header>
 
-      {/* Navigation */}
-      <nav className="border-b border-slate-700">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex space-x-8">
-            {[
-              { id: 'chat', label: 'AI Assistant', icon: <MessageSquare className="w-4 h-4" /> },
-              { id: 'analytics', label: 'Analytics', icon: <BarChart3 className="w-4 h-4" /> },
-              { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 py-4 border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-blue-400 text-blue-400'
-                    : 'border-transparent text-slate-400 hover:text-slate-300'
-                }`}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-              </button>
-            ))}
+        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
+          <div className="flex items-center">
+            <TrendingUp className="h-8 w-8 text-green-600 ml-3" />
+            <h3 className="text-lg font-semibold text-gray-900">نسبة التخزين المؤقت</h3>
           </div>
+          <p className="text-2xl font-bold text-green-600 mt-2">{analytics?.cacheHitRate || 0}%</p>
         </div>
-      </nav>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-6">
-        {activeTab === 'chat' && (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Chat Area */}
-            <div className="lg:col-span-3">
-              <div className="bg-slate-800/50 rounded-xl border border-slate-700 h-[600px] flex flex-col">
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {messages.length === 0 ? (
-                    <div className="text-center text-slate-400 py-12">
-                      <Bot className="w-16 h-16 mx-auto mb-4 text-slate-600" />
-                      <p className="text-lg mb-2">Welcome to AI Project Manager!</p>
-                      <p className="text-sm">Ask me anything about your projects, development, or best practices.</p>
-                    </div>
-                  ) : (
-                    messages.map(message => (
-                      <div
-                        key={message.id}
-                        className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div
-                          className={`max-w-lg px-4 py-3 rounded-lg ${
-                            message.type === 'user'
-                              ? 'bg-blue-600 text-white'
-                              : message.type === 'error'
-                              ? 'bg-red-600 text-white'
-                              : 'bg-slate-700 text-slate-200'
-                          }`}
-                        >
-                          <p className="whitespace-pre-wrap">{message.content}</p>
-                          
-                          {message.type === 'ai' && (
-                            <div className="flex items-center space-x-2 mt-2 text-xs opacity-70">
-                              <span>{message.provider}</span>
-                              {message.fromCache && <span className="text-green-400">⚡ Cached</span>}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                  
-                  {isLoading && (
-                    <div className="flex justify-start">
-                      <div className="bg-slate-700 px-4 py-3 rounded-lg">
-                        <div className="flex items-center space-x-2">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>AI is thinking...</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Input */}
-                <div className="border-t border-slate-700 p-4">
-                  <div className="flex space-x-2">
-                    <input
-                      id="chat-input"
-                      type="text"
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                      placeholder="Ask about your project, development, or best practices..."
-                      className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:border-blue-400"
-                    />
-                    <button
-                      onClick={sendMessage}
-                      disabled={!input.trim() || isLoading}
-                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed px-4 py-2 rounded-lg transition-colors"
-                    >
-                      <Send className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="lg:col-span-1">
-              <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
-                <h3 className="text-lg font-semibold mb-4 text-slate-200">Quick Actions</h3>
-                <div className="space-y-2">
-                  {quickActions.map((action, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleQuickAction(action.action)}
-                      className="w-full flex items-center space-x-3 bg-slate-700 hover:bg-slate-600 rounded-lg p-3 transition-colors text-left"
-                    >
-                      {action.icon}
-                      <span className="text-sm">{action.label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Stats */}
-                {analytics && (
+        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
+          <div className="flex items-center">
+            <Zap className="h-8 w-8 text-yellow-600 ml-3" />
+            <h3 className="text-lg font-semibold text-gray-900">استخدام GPT</h3>
                   <div className="mt-6 pt-6 border-t border-slate-700">
                     <h4 className="text-sm font-semibold mb-3 text-slate-300">Session Stats</h4>
                     <div className="space-y-2 text-sm">

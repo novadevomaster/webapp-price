@@ -1,15 +1,10 @@
 {
   "version": 2,
   "name": "ai-project-manager",
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
-    }
-  ],
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "framework": "vite",
   "routes": [
     {
       "src": "/(.*)",
